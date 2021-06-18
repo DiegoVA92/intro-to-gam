@@ -22,7 +22,7 @@ On a more personal level, I love music. It is one of the thing I cannot live wit
 
 ## Setup {-}
 
-```{r message=FALSE, warning=FALSE, include=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(readr)
 library(fs)
 library(magrittr)
