@@ -1,0 +1,102 @@
+# Introduction {#intro}
+
+The task of a supervised statistical learning model is to approximate the ground truth function that governs the statistical association between a response variable, denoted by $Y$, and one or more predictor variables, denoted by $X$. Say the ground truth model is $Y = f(X) + \epsilon$, where $\epsilon$ is a random error. Therefore, we want to find an estimate of the function $f(X)$, denoted by $\hat{f}(X)$, such that we can use it to predict or infer about the response $Y$. 
+
+Let's see an example. @lathrop2013madison directed a long-term sampling program, from 1976 to 1994, on the population of zooplankton at the four Yahara River chain of lakes (Mendota, Monona, Waubesa, and Kegonsa) in the state of Wisconsin, USA. @pedersen2019hierarchical analyzed a processed version of this data using _Hierarchical Generalized Additive Models_ (HGAMs) (more on this later), and the code in R used for the analysis can be found in the [Supplemental Information](https://doi.org/10.7717/peerj.6876/supp-1) section of the paper. We are going to reproduce this analysis to show the main concepts about GAMs.
+
+The data set consist on measurements of the population density of 8 zooplankton taxa in the aforementioned lakes taken roughly in a biweekly schedule, although, depending on the season or weather conditions, the sampling frequency varied. The day of the week of the measurement was recorded, as well as the year. Our aim is to build a model to infer population density of a taxon at a certain day of the year in the Mendota lake. Accordingly, the population density is our response variable, and the taxon and the day of the year are our predictor variables.  The sample distribution of the population density has a very right skewed distribution, with most of its density close to zero. For instance, a population density can not be less than zero. For this reason, we are a going to model the population density using a Gamma distribution, and use a _Generalized Linear Model_ (GLM) to build a regression linear model on the log-mean of the population density. We are going to shed light on this later, our porpuse here is only to show some graphical examples.
+
+First, let's keep things simple and analyze the association between the population density and the day of the year for a particular taxon in lake Mendota. Let's select the _D. thomasi_ taxon and build a scatterplot with the days of year. For practical reasons, we are going to plot the population density in a base 10 logarithmic scale.
+
+```{r scatter-simple, fig.align='center', fig.cap='Scatterplot of the population density and the day of the day for the D. thomasi taxon in Mendota lake.', message=FALSE, warning=FALSE}
+filepath <- path("data", "zooplankton.csv")
+zooplankton <- read_csv(filepath)
+zoo_example <- filter(zooplankton, taxon == "D. thomasi", lake == "Mendota")
+
+plt_thomasi <- 
+  zoo_example %>% 
+  ggplot(aes(x = day, y = density_adj)) +
+  geom_point(size = 1) +
+  scale_y_log10(breaks = c(0.1, 1, 10, 100, 1000),
+                labels = c("0.1", "1", "10", "100", "1000")) +
+  labs(x = "Day of year", y = "Population density") 
+
+print(plt_thomasi)
+```
+
+In Figure \@ref(fig:scatter-simple) we can distinguish a pattern in the population density throughout the days, but it is clearly kind of difficult to tell its form. One thing is for sure, it isn't a linear association. Consequently, a (generalized) linear regression model would be inadequate. To check this, let's plot the linear regression fitted line.
+
+```{r scatter-linear, fig.cap='Scatterplot of the population density and the day of the day for the D. thomasi taxon in Mendota lake showing the linear regression fitted line.', fig.align='center', message=FALSE, warning=FALSE}
+x <- zoo_example$day
+y <- zoo_example$density_adj
+
+glm_linear <- glm(y ~ x, family = Gamma(link = "log"))
+pred_linear <- predict(glm_linear, type = "response")
+dat_linear <- data.frame(x = x, linear = pred_linear)
+
+plt_glm_linear <- 
+  plt_thomasi +
+  geom_line(data = dat_linear, aes(x = x, y = linear, colour = "linear")) +
+  scale_color_npg() +
+  theme(legend.title = element_blank())
+  
+plt_glm_linear
+```
+
+From \@ref(fig:scatter-linear) we can check that the fitted GLM line definitely does not capture the association of the population density and the days of the year. As we stated in the initial paragraph, we need to find a function $\hat{f}$ to be able to predict the response variable. But, how do we specify this function so it accurately capture the association between the variables? For instance, in the GLM, it is assumed a linear association between the log-mean of the response and the predictor. This is a very restrictive form, but certainly useful in a variety of applications. However, we now for sure it won't be useful for our analysis. We could try polynomial regression. Let's plot a second degree and a third degree polynomial regression fitted curve, together with the linear regression fitted line .
+
+```{r scatter-poly, fig.cap='Scatterplot of the population density and the day of the day for the D. thomasi taxon in Mendota lake showing the linear regression fitted line and the second and third degree polynomial regression fitted curves.', fig.align='center', message=FALSE, warning=FALSE}
+glm_poly2 <- glm(y ~ poly(x, 2), family = Gamma(link = "log"))
+pred_poly2 <- predict(glm_poly2, type = "response")
+glm_poly3 <- glm(y ~ poly(x, 3), family = Gamma(link = "log"))
+pred_poly3 <- predict(glm_poly3, type = "response")
+dat_poly <- data.frame(x, pred_linear, pred_poly2, pred_poly3)
+dat_poly_long <- pivot_longer(
+  dat_poly,
+  cols = !x,
+  names_to = "model"
+)
+dat_poly_long$model <- factor(dat_poly_long$model, 
+                              levels = c("pred_linear", "pred_poly2", 
+                                         "pred_poly3"), 
+                              labels = c("linear", "poly(2)", "poly(3)"))
+
+
+plt_glm_poly <- 
+  plt_thomasi +
+  geom_line(data = dat_poly_long, aes(x = x, y = value, col = model)) +
+  scale_color_npg() +
+  theme(legend.title = element_blank())
+  
+plt_glm_poly
+```
+
+We see from Figure \@ref(fig:scatter-poly) that the third degree polynomial offers a good fit to the data. The disadvantage is that it is still a linear regression model. The only thing that changes is that the response is regressed over some transformation of the predictors, in this case, the n-th degree polynomial. This is certainly a good trick. But, what if we want to model more complex non-linear associations? We need a more flexible approach. _Generalized Additive Models_ (GAMs) allow us to build very flexible models by using _smooth functions_ over the predictors that can take a variety of forms and structures. Let's see them in action. We are going to add a GAM fitted smooth curve to the plot.
+
+```{r scatter-gam, fig.cap='Scatterplot of the population density and the day of the day for the D. thomasi taxon in Mendota lake showing a GAM fitted curve, second and third degree polynomial regression fitted curves and the LOESS fitted curve.', fig.align='center', message=FALSE, warning=FALSE}
+gam_smooth <- gam(y ~ s(x), family = Gamma(link = "log"))
+pred_smooth <- predict(gam_smooth, type = "response", se = FALSE)
+dat_smooth <- data.frame(dat_poly, pred_smooth)
+dat_smooth_long <- pivot_longer(
+  dat_smooth,
+  cols = !x,
+  names_to = "model"
+)
+dat_smooth_long$model <- factor(dat_smooth_long$model, 
+                                levels = c("pred_linear", "pred_poly2", 
+                                           "pred_poly3", "pred_smooth"), 
+                                labels = c("linear", "poly(2)", "poly(3)", 
+                                           "smooth"))
+
+plt_gam_smooth <- 
+  plt_thomasi +
+  geom_line(data = dat_smooth_long, aes(x = x, y = value, col = model)) +
+  scale_color_npg() +
+  theme(legend.title = element_blank())
+  
+plt_gam_smooth
+```
+
+One highlight from Figure \@ref(fig:scatter-gam) is that the GAM fitted curve is more flexible than the other curves. Unlike the polynomial regression curves, we didn't have to specify a certain degree or parameter to generate the curve. This is because the smooth curve is built non-parametrically. Another important detail is that the GAM fitted curve does not overfit the data points for the first 100 days, nor for the last 100 days, which is when the pattern is less obvious. This is an indicator that the GAM offers better generalization. 
+
+Before diving to the GAMs specifics, I guess you may be wondering why we care much about finding a good curve or function to specify the associations in the data. Do we really need to bother about this? We could just run a black-box algorithm, like a random forest, and get (mostly certainly) a good prediction accuracy on the population density. For this matter, I believe that a better question would be: when do have to worry about knowing the form of the function $\hat{f}$? Let's discuss that in the next section.

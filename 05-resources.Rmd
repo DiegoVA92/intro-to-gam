@@ -1,0 +1,28 @@
+# Resources
+
+## Books {-}
+
+- Wood, S. N. (2017). Generalized additive models: an introduction with R. CRC press.
+- Hastie, T. J. (2017). Generalized additive models (pp. 249-307). Routledge.
+- De Boor, C., & De Boor, C. (1978). A practical guide to splines (Vol. 27, p. 325). New York: springer-verlag.
+
+## Papers {-}
+
+- Wood, S. N. (2011). Fast stable restricted maximum likelihood and marginal likelihood estimation of semiparametric generalized linear models. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 73(1), 3-36.
+- Wood, S. N. (2004). Stable and efficient multiple smoothing parameter estimation for generalized additive models. Journal of the American Statistical Association, 99(467), 673-686.
+- Wood, S. N. (2003). Thin plate regression splines. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 65(1), 95-114.
+- Rigby, R. A., & Stasinopoulos, D. M. (2005). Generalized additive models for location, scale and shape. Journal of the Royal Statistical Society: Series C (Applied Statistics), 54(3), 507-554.
+- Pedersen, E. J., Miller, D. L., Simpson, G. L., & Ross, N. (2019). Hierarchical generalized additive models in ecology: an introduction with mgcv. PeerJ, 7, e6876.
+- Hastie, T., & Tibshirani, R. (1987). Generalized additive models: some applications. Journal of the American Statistical Association, 82(398), 371-386.
+- Hastie, T., & Tibshirani, R. (1995). Generalized additive models for medical research. Statistical methods in medical research, 4(3), 187-196.
+- Beck, N., & Jackman, S. (1998). Beyond linearity by default: Generalized additive models. American Journal of Political Science, 596-627.
+- Ramsay, T. O., Burnett, R. T., & Krewski, D. (2003). The effect of concurvity in generalized additive models linking mortality to ambient particulate matter. Epidemiology, 14(1), 18-23.
+- Yee, T. W., & Mitchell, N. D. (1991). Generalized additive models in plant ecology. Journal of vegetation science, 2(5), 587-602.
+
+## Online courses {-}
+
+- [Generalized Additive Models](https://m-clark.github.io/generalized-additive-models/)
+- [GAMs in R](https://noamross.github.io/gams-in-r-course/)
+
+
+

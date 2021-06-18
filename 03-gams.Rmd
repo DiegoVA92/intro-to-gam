@@ -1,0 +1,152 @@
+# GAMs {#gams}
+
+## Definition {#def}
+
+GAMs are a extension to the _Generalized Linear Models_ (GLMs). A GLM consists on equating some function, called the _link function_, of the mean of the response variable with a linear combination of the predictors, named the _linear predictor_. Here, the response is assumed to follow a _Exponential Family_ (EF) distribution. GAMs extents this by letting the linear predictor to include smooth functions over the predictors as terms in the linear combination. These smooth functions allow us to specify the association between the response and the predictors using non-linear continuous forms. 
+
+In general, GAMs have the following structure:
+
+$$
+\eta\left(\mu\right) = X\beta + \gamma_{1}(X_{1}) + \gamma_{1}(X_{2}) + \ldots + \gamma_{p}(X_{p}) + \ldots
+(\#eq:gam)
+$$
+where $\eta$ is the link function, $\mu = E(Y)$, $X\beta$ represents the parameterized part of the linear predictor, as in a GLM, and the functions $\eta$ are smooth functions over different sets of predictors. Here the $X$s represent the matrix form of a set of predictors rather than single predictors. Recall that it is assumed that $Y$ follows a  particular EF distribution.
+
+## Smoothing {#smooth}
+
+The main attraction of GAMs are the smooth functions. We are left with two problems: how to specify these smooth functions and how much "smoothy" or "wiggly" should they be? To construct the smooth functions, we use their _basis expansion_. That means that we express each smooth function as a finite linear combination of another functions, called _basis functions_, which are assumed to approximate the space of functions that the smooth function is part of. Functions constructed like this are called _splines_. 
+
+For a particular smooth function, we can write
+
+$$
+\begin{equation}
+\gamma(x) = \sum_{j=1}^{K}{\delta_{j}b_{j}(x)}
+(\#eq:smooth)
+\end{equation}
+$$
+
+where $\delta_{i}$ are the coefficients for the linear combination of the basis functions $b_{i}$. Here, $K$ is the number of basis functions in the linear combination, and it represents the _basis complexity_ or _basis size_. This parameter is important because it controls the form of the resulting smooth function. Greater values result in a very _wiggly_ smooth function, whereas lower values result in a plainer smooth function. In the univariate case, if we set the basis functions to be the polynomials of $x$ up to the third degree, then $b_{1}(x) = 1$, $b_{2}(x) = x$, $b_{3}(x) = x^2$ and $b_{4}(x) = x^3$, and the smooth function is represented as a third degree polynomial in $x$, $\gamma(x) = \delta_{1}+\delta_{2}x+\delta_{3}x^2+\delta_{4}x^3$. 
+
+Different splines can be specified using different types of basis functions. A very popular type are the B-splines which are constructed using piecewise polynomial basis functions. Let's see how the B-splines are constructed and fitted to the data in \@ref(intro) for different numbers of basis size using a GLM.
+
+```{r b-splines, fig.cap='Smooth function contructed as a B-spline using different values of basis complexity (K)', fig.height=8, fig.width=12, fig.align='center'}
+zoo_example <- filter(zooplankton, taxon == "D. thomasi", lake == "Mendota")
+x <- zoo_example$day
+y <- zoo_example$density_adj
+
+get_bspline <- function(k) {
+  b <- bs(x, df = k, degree = 2)
+  m <- glm(y ~ b, family = Gamma(link = "log"))
+  z <- sweep(cbind(1, b), 2, coef(m), "*")
+  db <- z[, 2:(k+1)]
+  l <- rowSums(z)
+  g <- rowSums(db)
+  s <- data.frame(x, db)
+  return(list(b = b, l = l, db = db, g = g, s = s))
+}
+
+plt_bspline <- function(k) {
+  bspline <- get_bspline(k)
+  g <- bspline$g
+  s <- bspline$s
+  s_pivot <- pivot_longer(s, cols = !x, names_to = "b")
+  plt <- 
+    ggplot() +
+    geom_line(aes(x = x, y = g), lwd = 0.65) +
+    geom_line(data = s_pivot, aes(x = x, y = value, col = b)) +
+    geom_hline(yintercept = 0, lty = "dashed") +
+    labs(y = expression(gamma), title = paste0("K = ", k)) +
+    theme(legend.position = "none")
+  plt
+}
+
+plt_bs_k2 <- plt_bspline(2)
+plt_bs_k5 <- plt_bspline(5)
+plt_bs_k10 <- plt_bspline(10)
+plt_bs_k20 <- plt_bspline(20)
+
+grid.arrange(plt_bs_k2, plt_bs_k5, plt_bs_k10, plt_bs_k20, ncol = 2)
+```
+In each panel of \@ref(fig:b-splines), the colored curves are the basis functions time their fitted coefficients, and the summation of these terms yield the smooth function following \@ref(eq:smooth). We can see that increasing the basis complexity yields a less smoothed function with more wiggliness, that is, a more complex function. Let's see how these smooth functions fit the data.
+
+```{r zoo-bs, fig.cap='Regression B-splines in a GLM using different values of basis complexity (K)', fig.height=8, fig.width=12, fig.align='center'}
+plt_manual_bs <- function(k) {
+  bspline <- get_bspline(k)
+  l <- bspline$l
+  dat <- data.frame(x, l)
+  plt <- 
+    ggplot() +
+    geom_point(aes(x = x, y = y), size = 1) +
+    geom_line(data = dat, aes(x = x, y = exp(l), colour = "bs")) +
+    scale_color_npg() +
+    scale_y_log10(breaks = c(0.1, 1, 10, 100, 1000),
+                labels = c("0.1", "1", "10", "100", "1000")) +
+    labs(x = "Day of year", y = "Population density", 
+         title = paste0("K = ", k)) +
+    theme(legend.position = "none")
+}
+
+plt_manual_bs_k2 <- plt_manual_bs(2)
+plt_manual_bs_k5 <- plt_manual_bs(5)
+plt_manual_bs_k10 <- plt_manual_bs(10)
+plt_manual_bs_k20 <- plt_manual_bs(20)
+
+grid.arrange(plt_manual_bs_k2, plt_manual_bs_k5, plt_manual_bs_k10, 
+             plt_manual_bs_k20, ncol = 2)
+```
+
+In \@ref(fig:zoo-bs) the see that increasing the basis size of the B-splines results in overfitting, which is something we want to avoid. On the other hand, a small basis size is too simple to capture the association. 
+
+## Penalization {#pena}
+
+Another way to control the complexity or wiggliness of the smooth functions in to penalize for their complexity in the objective function of the model. This is where GAMs depart from the GLMs. Recall the in a GLM, the objective function is the likelihood of the model. That is, we want to maximize it in order to get a good fit. In GAMs, the objective function is the _penalized likelihood_, which consists on the likelihood plus a penalty term on the complexity of the smooth functions. The penalty is on the coefficients of the basis functions in \@ref(fig:b-splines). Thus, we can write
+
+$$
+\begin{equation}
+l_{p}(\delta) = l(\delta) + \lambda\delta'S\delta
+(\#eq:likeli)
+\end{equation}
+$$
+
+where $l_{p}(\delta)$ is the penalized likelihood, $l(\delta)$ is the regular likelihood, and the penalized term consists on a _penalization parameter_ or _smoothing parameter_ $\lambda$ and a penalty matrix $S$. The smoothing parameter is the one that control how much penalization we do over the complexity of the smooth functions. The penalty matrix is specific to the type of basis functions we are using, and they specify how the penalization is made. From both of them, the smoothing parameter is the most important one, and here we are going to analyze how its magnitude affect the form of the smooth function.
+
+Before diving in the analysis of the smoothing parameter, we are going to talk about briefly about the implementation of GAMs we are using in {R}. The `mgcv` package is the recommended option to work with, as it offers different fitting procedures, a large range of smooth functions specifications, and, perhaps the main feature, automatic estimation of the smoothing parameters. The latter is done by three methods: _Generalized Cross Validation_ (GCV), _Restricted Marginal Likelihood_ (REML), and _Integrated Nested Laplace Approximation_ (INLA) for fully Bayesian inference. For general purposes, REML is the recommended option. The default option to construct the smooth functions in `mgcv` is using _Thin Plate_ (TP) regression splines, because they don't depend on knot placement and we can build smooth functions of several variables with them. For an exhaustive review of GAMs and this implementation in {R} please refer to @wood2017generalized.
+
+A remark: the basis complexity is not penalized. Instead of that, it is usually set to a large value and then its complexity is regularized using the penalty term. Now we are going to fit GAMs to the zooplankton example data setting the basis complexity to 50 and using different values for the smooth parameter (SP).
+
+```{r gam-sp, fig.cap='GAM models fitted using different values for the smoothing parameter.', fig.height=8, fig.width=12, fig.align='center'}
+plt_gam_sp <- function(sp) {
+  m <- gam(y ~ s(x, bs = "tp", k = 50, sp = sp), method = "REML",
+           family = Gamma(link = "log"))
+  pred <- predict(m, type = "response", se = FALSE)
+  dat <- data.frame(x, pred)
+  plt <- 
+    ggplot() +
+    geom_point(aes(x = x, y = y), size = 1) +
+    geom_line(data = dat, aes(x = x, y = pred, colour = "sp")) +
+    scale_color_npg() +
+    scale_y_log10(breaks = c(0.1, 1, 10, 100, 1000),
+                labels = c("0.1", "1", "10", "100", "1000")) +
+    labs(x = "Day of year", y = "Population density", 
+         title = paste0("SP = ", as.character(sp))) +
+    theme(legend.position = "none")
+}
+
+plt_gam_sp1 <- plt_gam_sp(0.0001)
+plt_gam_sp2 <- plt_gam_sp(0.001)
+plt_gam_sp3 <- plt_gam_sp(0.01)
+plt_gam_sp4 <- plt_gam_sp(0.1)
+
+grid.arrange(plt_gam_sp1, plt_gam_sp2, plt_gam_sp3, plt_gam_sp4, ncol = 2)
+```
+
+In \@ref(fig:gam-sp) we observe that, despite the basis size being quite large, the smoothing parameter is essential to control the complexity of the model. A very small smoothing parameter offers less penalization, that why the model in the first plot overfits drastically the data. On the other hand, the same model with a larger smoothing parameter as in the last plot is better regularized and yields a better fit.
+
+In this section we have very briefly talked about smoothing and penalization, which are the main concepts in GAMs. We strongly encourage to the curious reader to check the work of @wood2017generalized, which is the most cited reference in GAMs theory and application. In the next section, we are going to work on a full example on the zooplankton data to show more of the features the GAMs have.
+
+
+
+
+
+
+

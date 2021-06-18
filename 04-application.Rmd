@@ -1,0 +1,135 @@
+# Application
+
+We are going to replicate the first example on the zooplankton data analyzed in @pedersen2019hierarchical. 
+
+```{r}
+zooplankton$taxon <- factor(zooplankton$taxon)
+zooplankton$year_f <- factor(zooplankton$year)
+
+zoo_train <- subset(zooplankton, year%%2 == 0 & lake == "Mendota")
+zoo_test  <- subset(zooplankton, year%%2 == 1 & lake == "Mendota") 
+```
+
+```{r}
+get_deviance <- function(model, y_pred, y_obs, weights = NULL){
+  stopifnot(length(y_obs) == length(y_pred))
+  if(is.null(weights)) weights = rep(1, times = length(y_obs))
+  dev_residuals = model$family$dev.resids(y_obs, y_pred, weights)
+  return(sum(dev_residuals))
+}
+```
+
+```{r}
+zoo_comm_modS <-
+  gam(
+    density_adj ~
+      s(taxon, year_f, bs = "re") +
+      s(day, taxon, bs = "fs", k = 10, xt = list(bs = "cc")),
+    data = zoo_train, knots = list(day = c(0, 365)), 
+    family = Gamma(link = "log"), method = "REML", drop.unused.levels = FALSE
+  )
+
+zoo_comm_modI <- 
+  gam(
+    density_adj ~ 
+      s(day, by = taxon, k = 10, bs = "cc") + 
+      s(taxon, bs = "re") + s(taxon, year_f, bs = "re"),
+    data = zoo_train, knots = list(day = c(0, 365)),
+    family = Gamma(link = "log"), method = "REML", drop.unused.levels = FALSE
+  )
+```
+
+```{r fig.align='center', fig.width=10, fig.height=5}
+plt1 <- 
+  qq_plot(zoo_comm_modI, method = "simulate") + 
+  labs(title = "QQ-plot", subtitle = NULL)
+
+df <- data.frame(log_fitted = log(fitted(zoo_comm_modI)),
+                 residuals  = resid(zoo_comm_modI, type = "deviance"))
+
+plt2 <- 
+  ggplot(df, aes(x = log_fitted, y = residuals)) +
+  geom_point() +
+  labs(x = "Linear predictor", y = "Deviance residual", 
+       title = "Residuals vs. linear predictor")
+
+plot_grid(plt1, plt2, ncol = 2)
+```
+
+```{r fig.align='center', fig.width=12, fig.height=12}
+zoo_plot_data <- expand.grid(
+  day = 1:365, taxon = factor(levels(zoo_train$taxon)), year_f = 1980
+)
+
+zoo_modS_fit <- predict(
+  zoo_comm_modS, zoo_plot_data, se.fit = TRUE, exclude = "s(taxon,year_f)"
+)
+zoo_modI_fit <- predict(
+  zoo_comm_modI, zoo_plot_data, se.fit = TRUE, exclude = "s(taxon,year_f)"
+)
+
+zoo_plot_data$modS_fit <- as.numeric(zoo_modS_fit$fit)
+zoo_plot_data$modI_fit <- as.numeric(zoo_modI_fit$fit)
+
+zoo_plot_data <- gather(zoo_plot_data, model, fit, modS_fit, modI_fit)
+zoo_plot_data <- mutate(
+  zoo_plot_data, 
+  se= c(as.numeric(zoo_modS_fit$se.fit), as.numeric(zoo_modI_fit$se.fit)),
+  upper = exp(fit + (2 * se)), lower = exp(fit - (2 * se)), fit = exp(fit)
+)
+
+zoo_plot_model_labels = paste("Model", c("S", "I"))
+zoo_plot_model_labels = factor(
+  zoo_plot_model_labels,  levels = zoo_plot_model_labels
+)
+
+zoo_plot <- 
+  ggplot(zoo_plot_data) +
+  facet_wrap(~ taxon, nrow = 4, scales = "free_y")+
+  geom_ribbon(aes(x=day, ymin = lower, ymax = upper, fill = model), alpha=0.2) +
+  geom_point(data = zoo_train, aes(x = day, y = density_adj), size = 0.06) +
+  geom_point(data = zoo_test, aes(x = day, y = density_adj), size = 0.06, 
+             col = "grey") +
+  geom_line(aes(x = day, y = fit, color = model))+
+  labs(y = "Population density", 
+       x = "Day of year") +
+  scale_y_log10(breaks = c(0.1, 1, 10, 100, 1000), 
+                labels = c("0.1", "1", "10", "100", "1000"))+
+  scale_fill_brewer(name = "", palette = "Dark2", 
+                    labels = zoo_plot_model_labels) +
+  scale_colour_brewer(name = "", palette = "Dark2", 
+                      labels = zoo_plot_model_labels)+
+  theme(legend.position = "top")
+
+zoo_plot
+```
+
+```{r}
+zoo_comm_mod0 <- 
+  gam(
+    density_adj ~ 
+      s(taxon,bs="re"),
+    data = zoo_train, knots = list(day =c(0, 365)), family = Gamma(link ="log"), 
+    method = "REML", drop.unused.levels = FALSE
+  )
+
+zoo_test_summary <- zoo_test %>%
+  mutate(
+    mod0 = predict(zoo_comm_mod0, ., type="response"),
+    modS = predict(zoo_comm_modS, ., type="response"),
+    modI = predict(zoo_comm_modI, ., type="response"))%>%
+  group_by(taxon)%>%
+  summarise(
+    `Intercept only` = format(get_deviance(zoo_comm_mod0, mod0, density_adj), 
+                              scientific = FALSE, 
+                              digits=3),
+    `Model S` = format(get_deviance(zoo_comm_modS, modS, density_adj), 
+                       scientific = FALSE, 
+                       digits=3),
+    `Model I` = format(get_deviance(zoo_comm_modI, modI, density_adj), 
+                       scientific = FALSE, 
+                       digits=3))
+
+knitr::kable(zoo_test_summary)
+```
+

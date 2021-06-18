@@ -1,0 +1,42 @@
+--- 
+title: "Workshop: Introduction to GAMs"
+author: "Diego Villa"
+date: "`r Sys.Date()`"
+site: bookdown::bookdown_site
+documentclass: book
+bibliography: [book.bib, packages.bib]
+biblio-style: apalike
+link-citations: yes
+description: "An introduction to GAM given as a workshop to the Journal Club UNALM community"
+---
+
+# Preamble {-}
+
+This document contains a very basic introduction to Generalized Additive Models (GAMs). This topic was part of a series of workshops given to the [Journal Club UNALM](https://www.facebook.com/JCUNALM/) (2021-I) community (mentees, mentors and coordinators). The audience came from a very diverse set of scientific backgrounds, so the contents here are aimed to people with a basic knowledge of applied statistical analysis, although some notions about regression analysis would be preferable.
+
+## A little about me {-}
+
+Hi! I'm Diego Villa, a peruvian statistician. I'm mostly interested in the application of statistics and mathematics in public health and the biological sciences. I have a bachelor degree in Statistics from the National Agrarian University La Molina (UNALM), Lima, Peru. Currently, I'm a researcher associated to the [Health Innovation Lab](https://www.innovalab.info/) at the Institute of Tropical Medicine Alexander von Humboldt at Cayetano Heredia University in Lima, Peru. Some statistical topics I enjoy learning about are Bayesian spatio-temporal modeling and causal inference. 
+
+On a more personal level, I love music. It is one of the thing I cannot live without. I listen mostly to hard rock music, but lately I'm turning to more melodic music, like indie rock and dream pop. I also enjoy watching movies, specially physiological thrillers. I try to stay fit and do exercises regularly. Biking is one of the activities I do the most. 
+
+## Setup {-}
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(readr)
+library(fs)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(splines)
+library(purrr)
+library(tidyr)
+library(gridExtra)
+library(ggsci)
+library(mgcv)
+library(cowplot)
+library(gratia)
+
+
+theme_set(theme_bw())
+```
